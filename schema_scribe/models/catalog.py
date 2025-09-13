@@ -17,11 +17,24 @@ class DataSource(Base):
     database_type = SQLColumn(String(50), nullable=False)  # postgresql, mysql, etc.
     description = SQLColumn(Text)
     is_active = SQLColumn(Boolean, default=True)
+    
+    # Multi-database/schema support
+    databases = SQLColumn(JSON)  # List of databases to include (for servers with multiple DBs)
+    included_schemas = SQLColumn(JSON)  # List of schemas to include
+    excluded_schemas = SQLColumn(JSON)  # List of schemas to exclude
+    included_tables_pattern = SQLColumn(String(500))  # Regex pattern for tables to include
+    excluded_tables_pattern = SQLColumn(String(500))  # Regex pattern for tables to exclude
+    
+    # Processing preferences
+    auto_profile = SQLColumn(Boolean, default=True)  # Auto-profile on discovery
+    sample_size = SQLColumn(Integer, default=10000)  # Sample size for profiling large tables
+    
     created_at = SQLColumn(DateTime(timezone=True), server_default=func.now())
     updated_at = SQLColumn(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
     tables = relationship("Table", back_populates="data_source", cascade="all, delete-orphan")
+    table_filters = relationship("TableFilter", back_populates="data_source", cascade="all, delete-orphan")
 
 
 class Table(Base):
