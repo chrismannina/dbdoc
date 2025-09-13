@@ -131,3 +131,61 @@ class Relationship(Base):
     created_at = SQLColumn(DateTime(timezone=True), server_default=func.now())
     validated_at = SQLColumn(DateTime(timezone=True))
     validated_by = SQLColumn(String(255))  # User who validated
+
+
+class TableFilter(Base):
+    """Manages which tables to include/exclude from processing."""
+    
+    __tablename__ = "table_filters"
+    
+    id = SQLColumn(Integer, primary_key=True, index=True)
+    data_source_id = SQLColumn(Integer, ForeignKey("data_sources.id"), nullable=False)
+    table_id = SQLColumn(Integer, ForeignKey("tables.id"), nullable=False)
+    
+    # Filter settings
+    is_included = SQLColumn(Boolean, default=True)  # Include in processing
+    priority = SQLColumn(String(20), default="normal")  # critical, important, normal, low, ignore
+    reason = SQLColumn(Text)  # Why included/excluded
+    
+    # Metadata
+    created_at = SQLColumn(DateTime(timezone=True), server_default=func.now())
+    updated_at = SQLColumn(DateTime(timezone=True), onupdate=func.now())
+    updated_by = SQLColumn(String(255))
+    
+    # Relationships
+    data_source = relationship("DataSource", back_populates="table_filters")
+    table = relationship("Table")
+
+
+class UserContext(Base):
+    """User-provided context and hints for tables and columns."""
+    
+    __tablename__ = "user_contexts"
+    
+    id = SQLColumn(Integer, primary_key=True, index=True)
+    table_id = SQLColumn(Integer, ForeignKey("tables.id"), nullable=True)
+    column_id = SQLColumn(Integer, ForeignKey("columns.id"), nullable=True)
+    
+    # User-provided context
+    business_description = SQLColumn(Text)  # What this data represents
+    business_purpose = SQLColumn(Text)  # How it's used in the business
+    data_sources = SQLColumn(Text)  # Where the data comes from
+    data_consumers = SQLColumn(Text)  # Who/what uses this data
+    business_rules = SQLColumn(JSON)  # List of business rules/constraints
+    examples = SQLColumn(JSON)  # Example records or use cases
+    glossary = SQLColumn(JSON)  # Business terms and definitions
+    notes = SQLColumn(Text)  # Additional notes
+    
+    # Context metadata
+    confidence_level = SQLColumn(String(20))  # high, medium, low, uncertain
+    context_type = SQLColumn(String(50))  # complete, partial, hints_only
+    
+    # Tracking
+    created_at = SQLColumn(DateTime(timezone=True), server_default=func.now())
+    updated_at = SQLColumn(DateTime(timezone=True), onupdate=func.now())
+    created_by = SQLColumn(String(255))
+    updated_by = SQLColumn(String(255))
+    
+    # Relationships
+    table = relationship("Table")
+    column = relationship("Column")
