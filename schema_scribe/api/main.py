@@ -18,6 +18,7 @@ from .schemas import (
     GenerateDescriptionsRequest,
     ValidationRequest, ValidationResponse
 )
+from .endpoints import router as enhanced_router
 
 # Create tables on startup
 create_tables()
@@ -27,6 +28,9 @@ app = FastAPI(
     description="An LLM-powered data catalog",
     version="0.1.0"
 )
+
+# Include enhanced API routes
+app.include_router(enhanced_router)
 
 # Mount static files and templates
 static_path = os.path.join(os.path.dirname(__file__), "..", "web", "static")

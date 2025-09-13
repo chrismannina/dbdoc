@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schema Scribe - Enhanced Catalog</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .table-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+            height: 100%;
+        }
+        .table-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .priority-badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+        }
+        .priority-critical { background-color: #dc3545; color: white; }
+        .priority-important { background-color: #fd7e14; color: white; }
+        .priority-normal { background-color: #6c757d; color: white; }
+        .priority-low { background-color: #adb5bd; color: white; }
+        .priority-ignore { background-color: #e9ecef; color: #6c757d; }
+        
+        .filter-sidebar {
+            position: sticky;
+            top: 1rem;
+            max-height: calc(100vh - 2rem);
+            overflow-y: auto;
+        }
+        
+        .loading-spinner {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 9999;
+        }
+        
+        .table-grid {
+            min-height: 400px;
+        }
+        
+        .stats-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .search-box {
+            position: relative;
+        }
+        
+        .search-box .search-icon {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6c757d;
+        }
+        
+        .search-box input {
+            padding-left: 45px;
+        }
+        
+        .context-indicator {
+            color: #28a745;
+            font-size: 0.8rem;
+        }
+        
+        .virtual-scroll-container {
+            height: 600px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-database"></i> Schema Scribe
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="#" onclick="showERD()">
+                    <i class="bi bi-diagram-3"></i> ERD View
+                </a>
+                <a class="nav-link" href="#" onclick="exportCatalog()">
+                    <i class="bi bi-download"></i> Export
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <!-- Filter Sidebar -->
+            <div class="col-md-3">
+                <div class="filter-sidebar">
+                    <!-- Stats Card -->
+                    <div class="stats-card">
+                        <h5>Catalog Overview</h5>
+                        <div class="row mt-3">
+                            <div class="col-6">
+                                <div class="stat-item">
+                                    <div class="stat-value" id="total-tables">0</div>
+                                    <div class="stat-label">Tables</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="stat-item">
+                                    <div class="stat-value" id="documented-count">0</div>
+                                    <div class="stat-label">Documented</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="progress mt-3">
+                            <div class="progress-bar" id="progress-bar" role="progressbar" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Search -->
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h6 class="card-title">Search</h6>
+                            <div class="search-box">
+                                <i class="bi bi-search search-icon"></i>
+                                <input type="text" class="form-control" id="table-search" 
+                                       placeholder="Search tables..." onkeyup="searchTables()">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Schema Filter -->
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h6 class="card-title">Schema</h6>
+                            <select class="form-select" id="schema-filter" onchange="filterTables()">
+                                <option value="">All Schemas</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Priority Filter -->
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h6 class="card-title">Priority</h6>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value="critical" id="priority-critical" checked onchange="filterTables()">
+                                <label class="form-check-label" for="priority-critical">
+                                    <span class="badge priority-badge priority-critical">Critical</span>
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value="important" id="priority-important" checked onchange="filterTables()">
+                                <label class="form-check-label" for="priority-important">
+                                    <span class="badge priority-badge priority-important">Important</span>
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value="normal" id="priority-normal" checked onchange="filterTables()">
+                                <label class="form-check-label" for="priority-normal">
+                                    <span class="badge priority-badge priority-normal">Normal</span>
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value="low" id="priority-low" onchange="filterTables()">
+                                <label class="form-check-label" for="priority-low">
+                                    <span class="badge priority-badge priority-low">Low</span>
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value="ignore" id="priority-ignore" onchange="filterTables()">
+                                <label class="form-check-label" for="priority-ignore">
+                                    <span class="badge priority-badge priority-ignore">Ignore</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Status Filter -->
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h6 class="card-title">Documentation Status</h6>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="doc-status" id="status-all" value="all" checked onchange="filterTables()">
+                                <label class="form-check-label" for="status-all">All Tables</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="doc-status" id="status-documented" value="documented" onchange="filterTables()">
+                                <label class="form-check-label" for="status-documented">Documented</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="doc-status" id="status-undocumented" value="undocumented" onchange="filterTables()">
+                                <label class="form-check-label" for="status-undocumented">Not Documented</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bulk Actions -->
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-title">Bulk Actions</h6>
+                            <button class="btn btn-sm btn-outline-primary w-100 mb-2" onclick="selectAll()">
+                                <i class="bi bi-check-all"></i> Select All
+                            </button>
+                            <button class="btn btn-sm btn-outline-success w-100 mb-2" onclick="generateSelectedDescriptions()">
+                                <i class="bi bi-magic"></i> Generate Descriptions
+                            </button>
+                            <button class="btn btn-sm btn-outline-warning w-100" onclick="setPriority()">
+                                <i class="bi bi-flag"></i> Set Priority
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-9">
+                <!-- Action Bar -->
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2>Data Catalog: <span id="data-source-name">{{ data_source.name }}</span></h2>
+                    <div>
+                        <button class="btn btn-primary" onclick="generateAllDescriptions()">
+                            <i class="bi bi-magic"></i> Generate All
+                        </button>
+                        <button class="btn btn-success" onclick="discoverSchema()">
+                            <i class="bi bi-search"></i> Refresh Schema
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Table Grid -->
+                <div class="virtual-scroll-container">
+                    <div class="row table-grid" id="table-grid">
+                        <!-- Tables will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- Loading Indicator -->
+                <div class="text-center mt-4" id="loading-more" style="display: none;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ERD Modal -->
+    <div class="modal fade" id="erdModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Entity Relationship Diagram</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="erd-container" style="height: 600px; overflow: auto;">
+                        <!-- Mermaid diagram will be rendered here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-primary" onclick="exportERD()">
+                        <i class="bi bi-download"></i> Export as Image
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Context Modal -->
+    <div class="modal fade" id="contextModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Business Context</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="context-form">
+                        <div class="mb-3">
+                            <label class="form-label">Business Description</label>
+                            <textarea class="form-control" id="business-description" rows="3" 
+                                    placeholder="What does this table/column represent in business terms?"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Business Purpose</label>
+                            <textarea class="form-control" id="business-purpose" rows="2" 
+                                    placeholder="How is this data used in your business processes?"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Data Sources</label>
+                            <input type="text" class="form-control" id="data-sources" 
+                                   placeholder="Where does this data come from?">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Business Rules</label>
+                            <textarea class="form-control" id="business-rules" rows="2" 
+                                    placeholder="Any business rules or constraints? (one per line)"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Examples</label>
+                            <textarea class="form-control" id="examples" rows="2" 
+                                    placeholder="Provide example records or use cases"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Confidence Level</label>
+                            <select class="form-select" id="confidence-level">
+                                <option value="high">High - I'm very familiar with this data</option>
+                                <option value="medium" selected>Medium - I have some knowledge</option>
+                                <option value="low">Low - These are educated guesses</option>
+                                <option value="uncertain">Uncertain - Need to verify</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveContext()">Save Context</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>
+        // Initialize Mermaid
+        mermaid.initialize({ startOnLoad: true });
+
+        // Global variables
+        let currentOffset = 0;
+        const limit = 50;
+        let isLoading = false;
+        let hasMore = true;
+        let allTables = [];
+        let selectedTables = new Set();
+        const dataSourceId = {{ data_source.id }};
+
+        // Load initial data
+        document.addEventListener('DOMContentLoaded', function() {
+            loadTables();
+            loadSchemas();
+            setupInfiniteScroll();
+        });
+
+        // Infinite scroll setup
+        function setupInfiniteScroll() {
+            const container = document.querySelector('.virtual-scroll-container');
+            container.addEventListener('scroll', function() {
+                if (container.scrollTop + container.clientHeight >= container.scrollHeight - 100) {
+                    if (!isLoading && hasMore) {
+                        loadMoreTables();
+                    }
+                }
+            });
+        }
+
+        // Load tables with pagination
+        async function loadTables() {
+            if (isLoading) return;
+            isLoading = true;
+            
+            document.getElementById('loading-more').style.display = 'block';
+            
+            const params = new URLSearchParams({
+                data_source_id: dataSourceId,
+                limit: limit,
+                offset: currentOffset,
+                ...getFilterParams()
+            });
+
+            try {
+                const response = await fetch(`/api/v2/tables?${params}`);
+                const data = await response.json();
+                
+                renderTables(data.items);
+                updateStats(data);
+                
+                currentOffset += data.items.length;
+                hasMore = data.has_more;
+                
+            } catch (error) {
+                console.error('Error loading tables:', error);
+            } finally {
+                isLoading = false;
+                document.getElementById('loading-more').style.display = 'none';
+            }
+        }
+
+        // Load more tables
+        function loadMoreTables() {
+            loadTables();
+        }
+
+        // Get filter parameters
+        function getFilterParams() {
+            const params = {};
+            
+            // Search
+            const search = document.getElementById('table-search').value;
+            if (search) params.search = search;
+            
+            // Schema
+            const schema = document.getElementById('schema-filter').value;
+            if (schema) params.schema_filter = schema;
+            
+            // Priority
+            const priorities = [];
+            ['critical', 'important', 'normal', 'low', 'ignore'].forEach(p => {
+                if (document.getElementById(`priority-${p}`).checked) {
+                    priorities.push(p);
+                }
+            });
+            if (priorities.length > 0 && priorities.length < 5) {
+                params.priority = priorities.join(',');
+            }
+            
+            // Documentation status
+            const docStatus = document.querySelector('input[name="doc-status"]:checked').value;
+            if (docStatus === 'documented') {
+                params.has_descriptions = true;
+            } else if (docStatus === 'undocumented') {
+                params.has_descriptions = false;
+            }
+            
+            return params;
+        }
+
+        // Render tables
+        function renderTables(tables, append = true) {
+            const grid = document.getElementById('table-grid');
+            
+            if (!append) {
+                grid.innerHTML = '';
+                allTables = [];
+            }
+            
+            allTables.push(...tables);
+            
+            tables.forEach(table => {
+                const card = createTableCard(table);
+                grid.appendChild(card);
+            });
+        }
+
+        // Create table card
+        function createTableCard(table) {
+            const col = document.createElement('div');
+            col.className = 'col-md-6 col-lg-4 mb-3';
+            
+            const priorityClass = `priority-${table.priority || 'normal'}`;
+            const hasContext = table.has_user_context ? '<i class="bi bi-chat-dots-fill context-indicator"></i>' : '';
+            const hasDescription = table.has_description ? '<i class="bi bi-check-circle-fill text-success"></i>' : '';
+            
+            col.innerHTML = `
+                <div class="card table-card h-100" onclick="viewTable(${table.id})">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h6 class="card-title">${table.table_name}</h6>
+                            <span class="badge priority-badge ${priorityClass}">${table.priority || 'normal'}</span>
+                        </div>
+                        <p class="card-text small text-muted">
+                            <i class="bi bi-diagram-2"></i> ${table.schema_name}<br>
+                            <i class="bi bi-columns"></i> ${table.column_count || 0} columns<br>
+                            <i class="bi bi-list-ol"></i> ${table.row_count || 'N/A'} rows
+                        </p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                ${hasDescription} ${hasContext}
+                            </div>
+                            <div class="form-check" onclick="event.stopPropagation()">
+                                <input class="form-check-input" type="checkbox" value="${table.id}" 
+                                       onchange="toggleTableSelection(${table.id})">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            return col;
+        }
+
+        // Update statistics
+        function updateStats(data) {
+            document.getElementById('total-tables').textContent = data.total;
+            
+            // Calculate documented count (would need additional API call or data)
+            const documented = allTables.filter(t => t.has_description).length;
+            document.getElementById('documented-count').textContent = documented;
+            
+            const percentage = data.total > 0 ? (documented / data.total * 100) : 0;
+            document.getElementById('progress-bar').style.width = `${percentage}%`;
+        }
+
+        // Load schemas for filter
+        async function loadSchemas() {
+            // This would need an API endpoint to get distinct schemas
+            // For now, using mock data
+            const schemaSelect = document.getElementById('schema-filter');
+            ['public', 'analytics', 'staging'].forEach(schema => {
+                const option = document.createElement('option');
+                option.value = schema;
+                option.textContent = schema;
+                schemaSelect.appendChild(option);
+            });
+        }
+
+        // Filter tables
+        function filterTables() {
+            currentOffset = 0;
+            document.getElementById('table-grid').innerHTML = '';
+            loadTables();
+        }
+
+        // Search tables
+        let searchTimeout;
+        function searchTables() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                filterTables();
+            }, 300);
+        }
+
+        // View table details
+        function viewTable(tableId) {
+            window.location.href = `/table/${tableId}`;
+        }
+
+        // Toggle table selection
+        function toggleTableSelection(tableId) {
+            if (selectedTables.has(tableId)) {
+                selectedTables.delete(tableId);
+            } else {
+                selectedTables.add(tableId);
+            }
+        }
+
+        // Select all visible tables
+        function selectAll() {
+            allTables.forEach(table => {
+                selectedTables.add(table.id);
+                const checkbox = document.querySelector(`input[value="${table.id}"]`);
+                if (checkbox) checkbox.checked = true;
+            });
+        }
+
+        // Generate descriptions for selected tables
+        async function generateSelectedDescriptions() {
+            if (selectedTables.size === 0) {
+                alert('Please select tables first');
+                return;
+            }
+            
+            const tableIds = Array.from(selectedTables);
+            
+            try {
+                const response = await fetch(`/api/v2/data-sources/${dataSourceId}/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        table_ids: tableIds,
+                        use_user_context: true,
+                        batch_size: 10
+                    })
+                });
+                
+                const result = await response.json();
+                alert(`Generation started! Job ID: ${result.job_id}\nEstimated time: ${result.estimated_time_seconds}s`);
+                
+                // Start polling for job status
+                pollJobStatus(result.job_id);
+                
+            } catch (error) {
+                console.error('Error generating descriptions:', error);
+                alert('Failed to start generation');
+            }
+        }
+
+        // Poll job status
+        async function pollJobStatus(jobId) {
+            const interval = setInterval(async () => {
+                try {
+                    const response = await fetch(`/api/v2/jobs/${jobId}`);
+                    const status = await response.json();
+                    
+                    if (status.status === 'completed' || status.status === 'failed') {
+                        clearInterval(interval);
+                        alert(`Job ${status.status}! ${status.items_completed}/${status.items_total} completed`);
+                        filterTables(); // Reload to show new descriptions
+                    }
+                } catch (error) {
+                    console.error('Error checking job status:', error);
+                    clearInterval(interval);
+                }
+            }, 5000);
+        }
+
+        // Show ERD
+        async function showERD() {
+            try {
+                const response = await fetch('/api/v2/erd', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        data_source_id: dataSourceId,
+                        include_columns: true,
+                        max_tables: 30
+                    })
+                });
+                
+                const result = await response.json();
+                
+                // Render Mermaid diagram
+                const container = document.getElementById('erd-container');
+                container.innerHTML = `<div class="mermaid">${result.diagram}</div>`;
+                mermaid.init();
+                
+                // Show modal
+                const modal = new bootstrap.Modal(document.getElementById('erdModal'));
+                modal.show();
+                
+            } catch (error) {
+                console.error('Error generating ERD:', error);
+                alert('Failed to generate ERD');
+            }
+        }
+
+        // Save user context
+        async function saveContext() {
+            const contextData = {
+                business_description: document.getElementById('business-description').value,
+                business_purpose: document.getElementById('business-purpose').value,
+                data_sources: document.getElementById('data-sources').value,
+                business_rules: document.getElementById('business-rules').value.split('\n').filter(r => r),
+                examples: document.getElementById('examples').value,
+                confidence_level: document.getElementById('confidence-level').value
+            };
+            
+            // This would save to the selected table/column
+            console.log('Saving context:', contextData);
+            
+            // Close modal
+            bootstrap.Modal.getInstance(document.getElementById('contextModal')).hide();
+        }
+    </script>
+</body>
+</html>

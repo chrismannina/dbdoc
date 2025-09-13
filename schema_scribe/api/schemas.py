@@ -317,3 +317,46 @@ class ERDResponse(BaseModel):
     table_count: int
     relationship_count: int
     format: str = "mermaid"
+
+
+# Legacy schemas for backward compatibility (existing main.py imports)
+class TableDetailResponse(BaseModel):
+    """Detailed table response with columns."""
+    id: int
+    data_source_id: int
+    schema_name: str
+    table_name: str
+    table_type: Optional[str]
+    row_count: Optional[int]
+    size_bytes: Optional[int]
+    created_at: datetime
+    updated_at: Optional[datetime]
+    last_profiled_at: Optional[datetime]
+    columns: List[ColumnResponse] = []
+    has_description: bool = False
+    
+    class Config:
+        from_attributes = True
+
+
+class DiscoveryRequest(BaseModel):
+    """Legacy discovery request schema."""
+    schemas: Optional[List[str]] = None
+
+
+class GenerateDescriptionsRequest(BaseModel):
+    """Legacy generation request schema."""
+    table_ids: Optional[List[int]] = None
+    column_ids: Optional[List[int]] = None
+
+
+class ValidationRequest(BaseModel):
+    """Request for validating a description."""
+    action: str  # approve, reject, edit
+    feedback: Optional[str] = None
+
+
+class ValidationResponse(BaseModel):
+    """Response for validation action."""
+    success: bool
+    message: str
