@@ -7,6 +7,7 @@ from sqlalchemy import and_, or_
 import re
 
 from ..models import Table, Column, Relationship, TableFilter
+from .relationship_detector import RelationshipDetector
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ class ERDGenerator:
         tables = self._get_tables(data_source_id, schema_filter, max_tables, only_included)
         
         # Detect relationships if not already present
-        relationships = self._get_or_detect_relationships(tables)
+        relationships = self._get_or_detect_relationships(tables, data_source_id)
         
         # Build Mermaid diagram
         diagram = self._build_mermaid_diagram(
@@ -115,7 +116,7 @@ class ERDGenerator:
         
         return query.limit(max_tables).all()
     
-    def _get_or_detect_relationships(self, tables: List[Table]) -> List[Relationship]:
+    def _get_or_detect_relationships(self, tables: List[Table], data_source_id: int) -> List[Relationship]:
         """Get existing relationships or detect new ones."""
         
         table_ids = [t.id for t in tables]
@@ -131,7 +132,8 @@ class ERDGenerator:
         # If no relationships exist, try to detect them
         if not relationships and tables:
             logger.info("No existing relationships found, attempting detection...")
-            self.detect_relationships(tables[0].data_source_id)
+            detector = RelationshipDetector(self.db)
+            detector.detect_all_relationships(data_source_id)
             
             # Fetch again after detection
             relationships = self.db.query(Relationship).filter(

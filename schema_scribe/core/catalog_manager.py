@@ -502,16 +502,43 @@ class CatalogManager:
         Use this from non-async contexts.
         """
         try:
-            # Create new event loop if none exists
+            # Check if we're in an async context (like FastAPI)
             try:
-                loop = asyncio.get_event_loop()
-                if loop.is_closed():
-                    raise RuntimeError("Event loop is closed")
+                loop = asyncio.get_running_loop()
+                # If we're already in an event loop, use thread pool to avoid conflicts
+                import concurrent.futures
+                
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(self._run_enhanced_generation, 
+                                           data_source_id, table_ids, column_ids, 
+                                           max_concurrent, rate_limit_rpm, 
+                                           progress_callback, use_cache)
+                    return future.result()
+                    
             except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-            
-            # Run the async method
+                # No event loop running, safe to create one directly
+                return self._run_enhanced_generation(
+                    data_source_id, table_ids, column_ids, 
+                    max_concurrent, rate_limit_rpm, 
+                    progress_callback, use_cache
+                )
+                    
+        except Exception as e:
+            logger.error(f"Sync wrapper failed: {e}")
+            # Fallback to original method
+            logger.info("Falling back to original generation method")
+            return self.generate_descriptions(
+                data_source_id=data_source_id,
+                table_ids=table_ids,
+                column_ids=column_ids
+            )
+    
+    def _run_enhanced_generation(self, data_source_id, table_ids, column_ids, 
+                               max_concurrent, rate_limit_rpm, progress_callback, use_cache):
+        """Run enhanced generation in a new event loop."""
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
             return loop.run_until_complete(
                 self.generate_descriptions_enhanced(
                     data_source_id=data_source_id,
@@ -523,15 +550,8 @@ class CatalogManager:
                     use_cache=use_cache
                 )
             )
-        except Exception as e:
-            logger.error(f"Sync wrapper failed: {e}")
-            # Fallback to original method
-            logger.info("Falling back to original generation method")
-            return self.generate_descriptions(
-                data_source_id=data_source_id,
-                table_ids=table_ids,
-                column_ids=column_ids
-            )
+        finally:
+            loop.close()
     
     def get_tables(self, data_source_id: int) -> List[Dict[str, Any]]:
         """Get all tables for a data source."""

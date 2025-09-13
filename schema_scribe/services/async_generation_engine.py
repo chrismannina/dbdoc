@@ -255,9 +255,9 @@ class AsyncGenerationEngine:
         """Synchronous table description generation."""
         # Use the existing AI service but with enhanced context
         result = self.ai_service.generate_table_description(
-            schema_name=metadata['schema_name'],
-            table_name=metadata['table_name'],
-            columns=metadata['columns'],
+            schema_name=metadata.get('schema_name', 'unknown_schema'),
+            table_name=metadata.get('table_name', 'unknown_table'),
+            columns=metadata.get('columns', []),
             row_count=metadata.get('row_count')
         )
         
@@ -286,10 +286,10 @@ class AsyncGenerationEngine:
         sample_values = list(metadata.get('top_values', {}).keys())[:10] if metadata.get('top_values') else []
         
         result = self.ai_service.generate_column_description(
-            table_name=metadata['table_name'],
-            column_name=metadata['column_name'],
-            data_type=metadata['data_type'],
-            is_nullable=metadata['is_nullable'],
+            table_name=metadata.get('table_name', 'unknown_table'),
+            column_name=metadata.get('column_name', 'unknown_column'),
+            data_type=metadata.get('data_type', 'unknown'),
+            is_nullable=metadata.get('is_nullable', True),
             profile_data=profile_data,
             sample_values=sample_values,
             table_context=metadata.get('table_description')  # Use table description as context!

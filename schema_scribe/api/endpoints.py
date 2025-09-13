@@ -11,6 +11,7 @@ from datetime import datetime
 from ..models.base import get_db
 from ..models import DataSource, Table, Column, TableFilter, UserContext, Relationship
 from ..core import CatalogManager
+from ..services.job_manager import JobManager, JobType, create_job, start_job, get_job, list_jobs
 from .schemas import (
     DataSourceCreate, DataSourceUpdate, DataSourceResponse,
     TableResponse, PaginatedTableResponse, TableListParams,
@@ -25,8 +26,8 @@ from .schemas import (
 
 router = APIRouter(prefix="/api/v2", tags=["Enhanced API"])
 
-# Job tracking (temporary in-memory storage - should use Redis in production)
-job_store = {}
+# Use the global job manager
+from ..services.job_manager import job_manager
 
 
 # Data Source endpoints
@@ -385,9 +386,6 @@ async def generate_descriptions_async(
     db: Session = Depends(get_db)
 ):
     """Start async generation job with user context."""
-    # Create job ID
-    job_id = str(uuid.uuid4())
-    
     # Get tables to process
     query = db.query(Table).filter(Table.data_source_id == data_source_id)
     
@@ -404,19 +402,47 @@ async def generate_descriptions_async(
     
     tables = query.all()
     
-    # Initialize job
-    job_store[job_id] = {
-        'status': JobStatus.PENDING,
-        'progress': 0.0,
-        'items_completed': 0,
-        'items_total': len(tables),
-        'started_at': datetime.utcnow(),
-        'errors': []
-    }
+    # Create job
+    job_id = create_job(
+        job_type=JobType.DESCRIPTION_GENERATION,
+        title=f"Generate Descriptions for {len(tables)} tables",
+        description=f"Generating AI descriptions for data source {data_source_id}",
+        total_items=len(tables),
+        metadata={
+            "data_source_id": data_source_id,
+            "table_ids": [t.id for t in tables],
+            "use_user_context": params.use_user_context,
+            "include_columns": params.include_columns
+        }
+    )
     
-    # Here you would queue the actual generation task
-    # For now, we'll just update the job status
-    job_store[job_id]['status'] = JobStatus.RUNNING
+    # Start the job
+    def generation_job(progress_callback, db_session, data_source_id, table_ids, params):
+        """Job function for description generation."""
+        catalog_manager = CatalogManager(db_session)
+        
+        try:
+            result = catalog_manager.generate_descriptions_sync_wrapper(
+                data_source_id=data_source_id,
+                table_ids=table_ids,
+                max_concurrent=5,
+                rate_limit_rpm=60,
+                use_cache=True
+            )
+            return result
+        except Exception as e:
+            logger.error(f"Generation job failed: {e}")
+            raise
+    
+    # Start job in background
+    start_job(
+        job_id,
+        generation_job,
+        db,
+        data_source_id,
+        [t.id for t in tables],
+        params
+    )
     
     estimated_time = len(tables) * 2  # 2 seconds per table estimate
     
@@ -430,11 +456,50 @@ async def generate_descriptions_async(
 @router.get("/jobs/{job_id}", response_model=JobStatusResponse)
 async def get_job_status(job_id: str):
     """Get status of a generation job."""
-    if job_id not in job_store:
+    job = get_job(job_id)
+    if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     
-    job = job_store[job_id]
-    return JobStatusResponse(**job)
+    return JobStatusResponse(
+        job_id=job.id,
+        status=job.status,
+        progress=job.progress.percentage / 100.0,
+        items_completed=job.progress.items_processed,
+        items_total=job.progress.total_items,
+        errors=[job.error] if job.error else [],
+        started_at=job.started_at,
+        completed_at=job.completed_at
+    )
+
+
+@router.get("/jobs", response_model=List[JobStatusResponse])
+async def list_all_jobs(
+    job_type: Optional[str] = None,
+    status: Optional[str] = None,
+    limit: int = 50
+):
+    """List all jobs with optional filtering."""
+    job_type_enum = JobType(job_type) if job_type else None
+    status_enum = None
+    if status:
+        from ..services.job_manager import JobStatus
+        status_enum = JobStatus(status)
+    
+    jobs = list_jobs(job_type=job_type_enum, status=status_enum, limit=limit)
+    
+    return [
+        JobStatusResponse(
+            job_id=job.id,
+            status=job.status,
+            progress=job.progress.percentage / 100.0,
+            items_completed=job.progress.items_processed,
+            items_total=job.progress.total_items,
+            errors=[job.error] if job.error else [],
+            started_at=job.started_at,
+            completed_at=job.completed_at
+        )
+        for job in jobs
+    ]
 
 
 # ERD endpoint

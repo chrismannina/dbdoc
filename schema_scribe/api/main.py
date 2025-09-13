@@ -70,6 +70,19 @@ async def catalog_view(request: Request, data_source_id: int, db: Session = Depe
     })
 
 
+@app.get("/enhanced-catalog/{data_source_id}", response_class=HTMLResponse)
+async def enhanced_catalog_view(request: Request, data_source_id: int, db: Session = Depends(get_db)):
+    """Enhanced catalog view with filtering, search, and ERD features."""
+    data_source = db.query(DataSource).filter(DataSource.id == data_source_id).first()
+    if not data_source:
+        raise HTTPException(status_code=404, detail="Data source not found")
+    
+    return templates.TemplateResponse("enhanced_catalog.html", {
+        "request": request,
+        "data_source": data_source
+    })
+
+
 @app.get("/table/{table_id}", response_class=HTMLResponse)
 async def table_view(request: Request, table_id: int, db: Session = Depends(get_db)):
     """Detailed view of a specific table."""
