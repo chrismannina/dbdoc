@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude
+.claude
+.claudeignore
+CLAUDE.md
+
+# Project specific
+schema_scribe.db
+test_*.db
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# API Keys and secrets
+*.key
+*.pem
+config.json

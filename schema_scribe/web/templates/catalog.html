@@ -1,0 +1,465 @@
+{% extends "base.html" %}
+
+{% block title %}{{ data_source.name }} - Schema Scribe{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/">Data Sources</a></li>
+                <li class="breadcrumb-item active">{{ data_source.name }}</li>
+            </ol>
+        </nav>
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>
+                <i class="fas fa-server me-2 text-primary"></i>
+                {{ data_source.name }}
+            </h1>
+            <div>
+                <button class="btn btn-outline-primary me-2" onclick="discoverSchema()">
+                    <i class="fas fa-search me-1"></i>
+                    Discover Schema
+                </button>
+                <button class="btn btn-outline-secondary me-2" onclick="toggleSelectionMode()" id="selectionToggle">
+                    <i class="fas fa-check-square me-1"></i>
+                    Select Tables
+                </button>
+                <div class="btn-group" role="group">
+                    <button class="btn btn-success" onclick="generateDescriptions()" id="generateBtn">
+                        <i class="fas fa-robot me-1"></i>
+                        Generate Descriptions
+                    </button>
+                    <button type="button" class="btn btn-success dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown">
+                        <span class="visually-hidden">Toggle Dropdown</span>
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li>
+                            <h6 class="dropdown-header">Generation Mode</h6>
+                        </li>
+                        <li>
+                            <div class="dropdown-item-text">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="enhancedMode" checked>
+                                    <label class="form-check-label" for="enhancedMode">
+                                        <strong>Enhanced Mode</strong>
+                                        <small class="d-block text-muted">
+                                            Better accuracy, concurrency, caching
+                                        </small>
+                                    </label>
+                                </div>
+                            </div>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <div class="dropdown-item-text">
+                                <label for="concurrencySlider" class="form-label">
+                                    <small>Concurrency: <span id="concurrencyValue">5</span></small>
+                                </label>
+                                <input type="range" class="form-range" id="concurrencySlider" 
+                                       min="1" max="10" value="5" 
+                                       oninput="document.getElementById('concurrencyValue').textContent = this.value">
+                            </div>
+                        </li>
+                        <li>
+                            <div class="dropdown-item-text">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="useCache" checked>
+                                    <label class="form-check-label" for="useCache">
+                                        <small>Enable Caching</small>
+                                    </label>
+                                </div>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="mb-4">
+            <div class="input-group">
+                <span class="input-group-text">
+                    <i class="fas fa-search"></i>
+                </span>
+                <input type="text" class="form-control" id="searchTables" 
+                       placeholder="Search tables..." onkeyup="filterTables()">
+            </div>
+        </div>
+
+        <!-- Selection controls (hidden by default) -->
+        <div class="mb-4" id="selectionControls" style="display: none;">
+            <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded">
+                <div>
+                    <button class="btn btn-sm btn-outline-primary me-2" onclick="selectAllTables()">
+                        <i class="fas fa-check-double me-1"></i>
+                        Select All
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary me-2" onclick="clearSelection()">
+                        <i class="fas fa-times me-1"></i>
+                        Clear Selection
+                    </button>
+                    <span class="text-muted">
+                        <span id="selectedCount">0</span> tables selected
+                    </span>
+                </div>
+                <div>
+                    <button class="btn btn-sm btn-success" onclick="generateSelectedDescriptions()">
+                        <i class="fas fa-robot me-1"></i>
+                        Generate for Selected
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        {% if tables %}
+            <div class="row" id="tablesContainer">
+                {% for table in tables %}
+                <div class="col-md-6 col-lg-4 mb-4 table-item" 
+                     data-name="{{ table.table_name.lower() }}" 
+                     data-schema="{{ table.schema_name.lower() }}">
+                    <div class="card h-100 table-card position-relative" onclick="handleCardClick(event, {{ table.id }})">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div class="d-flex align-items-center">
+                                    <input type="checkbox" class="form-check-input me-2 table-checkbox" 
+                                           data-table-id="{{ table.id }}" 
+                                           onclick="event.stopPropagation(); updateSelectionCount()" 
+                                           style="display: none;">
+                                    <h6 class="card-title mb-0">
+                                        <i class="fas fa-table me-1 text-secondary"></i>
+                                        {{ table.table_name }}
+                                    </h6>
+                                </div>
+                                {% if table.ai_confidence %}
+                                    {% set confidence_class = "confidence-high" if table.ai_confidence > 0.8 else ("confidence-medium" if table.ai_confidence > 0.5 else "confidence-low") %}
+                                    <span class="badge {{ confidence_class }} confidence-badge">
+                                        {{ "%.0f"|format(table.ai_confidence * 100) }}%
+                                    </span>
+                                {% endif %}
+                            </div>
+                            
+                            <p class="text-muted small mb-2">
+                                <i class="fas fa-layer-group me-1"></i>
+                                {{ table.schema_name }}
+                            </p>
+                            
+                            {% if table.description %}
+                                <p class="card-text small">{{ table.description[:120] }}{% if table.description|length > 120 %}...{% endif %}</p>
+                            {% else %}
+                                <p class="card-text text-muted small">
+                                    <em>No description available</em>
+                                </p>
+                            {% endif %}
+                            
+                            <div class="mt-auto">
+                                <div class="row text-center small text-muted">
+                                    <div class="col-4">
+                                        <i class="fas fa-table-columns me-1"></i>
+                                        {{ table.column_count }} cols
+                                    </div>
+                                    <div class="col-4">
+                                        {% if table.row_count %}
+                                            <i class="fas fa-list-ol me-1"></i>
+                                            {{ "{:,}".format(table.row_count) }} rows
+                                        {% else %}
+                                            <i class="fas fa-question me-1"></i>
+                                            Unknown
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-4">
+                                        <i class="fas fa-cube me-1"></i>
+                                        {{ table.table_type.replace('BASE TABLE', 'Table').replace('VIEW', 'View') }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="text-center py-5" id="noTablesMessage">
+                <i class="fas fa-table fa-4x text-muted mb-3"></i>
+                <h4 class="text-muted">No Tables Found</h4>
+                <p class="text-muted">Run schema discovery to analyze your database.</p>
+                <button class="btn btn-primary" onclick="discoverSchema()">
+                    <i class="fas fa-search me-1"></i>
+                    Discover Schema
+                </button>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Loading Modal -->
+<div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-body text-center py-4">
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <div id="loadingText">Processing...</div>
+                <div class="progress mt-3" id="progressContainer" style="display: none;">
+                    <div class="progress-bar" role="progressbar" id="progressBar" style="width: 0%"></div>
+                </div>
+                <small class="text-muted" id="progressDetails" style="display: none;"></small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let selectionMode = false;
+
+function toggleSelectionMode() {
+    selectionMode = !selectionMode;
+    const checkboxes = document.querySelectorAll('.table-checkbox');
+    const selectionControls = document.getElementById('selectionControls');
+    const toggleBtn = document.getElementById('selectionToggle');
+    
+    if (selectionMode) {
+        checkboxes.forEach(cb => cb.style.display = 'block');
+        selectionControls.style.display = 'block';
+        toggleBtn.innerHTML = '<i class="fas fa-times me-1"></i>Cancel Selection';
+        toggleBtn.className = 'btn btn-outline-danger me-2';
+    } else {
+        checkboxes.forEach(cb => {
+            cb.style.display = 'none';
+            cb.checked = false;
+        });
+        selectionControls.style.display = 'none';
+        toggleBtn.innerHTML = '<i class="fas fa-check-square me-1"></i>Select Tables';
+        toggleBtn.className = 'btn btn-outline-secondary me-2';
+        updateSelectionCount();
+    }
+}
+
+function handleCardClick(event, tableId) {
+    if (selectionMode) {
+        const checkbox = event.currentTarget.querySelector('.table-checkbox');
+        checkbox.checked = !checkbox.checked;
+        updateSelectionCount();
+    } else {
+        location.href = `/table/${tableId}`;
+    }
+}
+
+function selectAllTables() {
+    const checkboxes = document.querySelectorAll('.table-checkbox');
+    checkboxes.forEach(cb => cb.checked = true);
+    updateSelectionCount();
+}
+
+function clearSelection() {
+    const checkboxes = document.querySelectorAll('.table-checkbox');
+    checkboxes.forEach(cb => cb.checked = false);
+    updateSelectionCount();
+}
+
+function updateSelectionCount() {
+    const checkedBoxes = document.querySelectorAll('.table-checkbox:checked');
+    document.getElementById('selectedCount').textContent = checkedBoxes.length;
+}
+
+function getSelectedTableIds() {
+    const checkedBoxes = document.querySelectorAll('.table-checkbox:checked');
+    return Array.from(checkedBoxes).map(cb => parseInt(cb.dataset.tableId));
+}
+
+async function generateSelectedDescriptions() {
+    const selectedIds = getSelectedTableIds();
+    if (selectedIds.length === 0) {
+        alert('Please select at least one table.');
+        return;
+    }
+    
+    const settings = getGenerationSettings();
+    
+    const modal = new bootstrap.Modal(document.getElementById('loadingModal'));
+    const modeText = settings.enhanced ? ' (Enhanced Mode)' : ' (Standard Mode)';
+    document.getElementById('loadingText').textContent = `Generating AI descriptions for ${selectedIds.length} selected tables${modeText}...`;
+    document.getElementById('progressContainer').style.display = 'block';
+    document.getElementById('progressDetails').style.display = 'block';
+    
+    if (settings.enhanced) {
+        document.getElementById('progressDetails').textContent = `Using enhanced mode with ${settings.max_concurrent} concurrent requests and ${settings.use_cache ? 'caching enabled' : 'caching disabled'}`;
+    } else {
+        document.getElementById('progressDetails').textContent = 'This may take several minutes. Please wait...';
+    }
+    
+    modal.show();
+    
+    const startTime = Date.now();
+    
+    try {
+        const url = new URL(`/api/data-sources/{{ data_source.id }}/generate-descriptions`, window.location.origin);
+        if (settings.enhanced) {
+            url.searchParams.append('enhanced', 'true');
+            url.searchParams.append('max_concurrent', settings.max_concurrent.toString());
+            url.searchParams.append('use_cache', settings.use_cache.toString());
+        }
+        
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ table_ids: selectedIds })
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            const duration = Math.round((Date.now() - startTime) / 1000);
+            
+            let message = `Generated ${result.descriptions_generated} AI descriptions for selected tables in ${duration} seconds!`;
+            
+            if (settings.enhanced && result.enhancement_features) {
+                message += `\n\nEnhanced features used:\n• ${result.enhancement_features.join('\n• ')}`;
+                if (result.tasks_per_second) {
+                    message += `\n\nPerformance: ${result.tasks_per_second.toFixed(2)} tasks/second`;
+                }
+            }
+            
+            alert(message);
+            location.reload();
+        } else {
+            const error = await response.json();
+            alert('Error: ' + error.detail);
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    } finally {
+        modal.hide();
+    }
+}
+
+function filterTables() {
+    const searchTerm = document.getElementById('searchTables').value.toLowerCase();
+    const tables = document.querySelectorAll('.table-item');
+    let visibleCount = 0;
+    
+    tables.forEach(table => {
+        const tableName = table.dataset.name;
+        const schemaName = table.dataset.schema;
+        
+        if (tableName.includes(searchTerm) || schemaName.includes(searchTerm)) {
+            table.style.display = 'block';
+            visibleCount++;
+        } else {
+            table.style.display = 'none';
+        }
+    });
+    
+    // Show/hide no results message
+    const noResultsMsg = document.getElementById('noResultsMessage');
+    if (visibleCount === 0 && tables.length > 0) {
+        if (!noResultsMsg) {
+            const container = document.getElementById('tablesContainer');
+            container.insertAdjacentHTML('afterend', 
+                '<div id="noResultsMessage" class="text-center py-4"><i class="fas fa-search fa-2x text-muted mb-2"></i><p class="text-muted">No tables match your search.</p></div>');
+        }
+    } else if (noResultsMsg) {
+        noResultsMsg.remove();
+    }
+}
+
+async function discoverSchema() {
+    const modal = new bootstrap.Modal(document.getElementById('loadingModal'));
+    document.getElementById('loadingText').textContent = 'Discovering schema...';
+    modal.show();
+    
+    try {
+        const response = await fetch(`/api/data-sources/{{ data_source.id }}/discover`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ schemas: null })
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            alert(`Discovery complete! Found ${result.tables_added} new tables and ${result.columns_added} new columns.`);
+            location.reload();
+        } else {
+            const error = await response.json();
+            alert('Error: ' + error.detail);
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    } finally {
+        modal.hide();
+    }
+}
+
+function getGenerationSettings() {
+    return {
+        enhanced: document.getElementById('enhancedMode').checked,
+        max_concurrent: parseInt(document.getElementById('concurrencySlider').value),
+        use_cache: document.getElementById('useCache').checked
+    };
+}
+
+async function generateDescriptions() {
+    const tableCount = document.querySelectorAll('.table-item').length;
+    const settings = getGenerationSettings();
+    
+    const modal = new bootstrap.Modal(document.getElementById('loadingModal'));
+    const modeText = settings.enhanced ? ' (Enhanced Mode)' : ' (Standard Mode)';
+    document.getElementById('loadingText').textContent = `Generating AI descriptions for ${tableCount} tables${modeText}...`;
+    document.getElementById('progressContainer').style.display = 'block';
+    document.getElementById('progressDetails').style.display = 'block';
+    
+    if (settings.enhanced) {
+        document.getElementById('progressDetails').textContent = `Using enhanced mode with ${settings.max_concurrent} concurrent requests and ${settings.use_cache ? 'caching enabled' : 'caching disabled'}`;
+    } else {
+        document.getElementById('progressDetails').textContent = 'This may take several minutes. Please wait...';
+    }
+    
+    modal.show();
+    
+    const startTime = Date.now();
+    
+    try {
+        const url = new URL(`/api/data-sources/{{ data_source.id }}/generate-descriptions`, window.location.origin);
+        if (settings.enhanced) {
+            url.searchParams.append('enhanced', 'true');
+            url.searchParams.append('max_concurrent', settings.max_concurrent.toString());
+            url.searchParams.append('use_cache', settings.use_cache.toString());
+        }
+        
+        const response = await fetch(url, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            const duration = Math.round((Date.now() - startTime) / 1000);
+            
+            let message = `Generated ${result.descriptions_generated} AI descriptions in ${duration} seconds!`;
+            
+            if (settings.enhanced && result.enhancement_features) {
+                message += `\n\nEnhanced features used:\n• ${result.enhancement_features.join('\n• ')}`;
+                if (result.tasks_per_second) {
+                    message += `\n\nPerformance: ${result.tasks_per_second.toFixed(2)} tasks/second`;
+                }
+            }
+            
+            alert(message);
+            location.reload();
+        } else {
+            const error = await response.json();
+            alert('Error: ' + error.detail);
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    } finally {
+        modal.hide();
+    }
+}
+</script>
+{% endblock %}

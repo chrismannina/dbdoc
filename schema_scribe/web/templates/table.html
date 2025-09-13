@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+
+{% block title %}{{ table.table_name }} - Schema Scribe{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/">Data Sources</a></li>
+                <li class="breadcrumb-item"><a href="/catalog/{{ table.data_source_id }}">Catalog</a></li>
+                <li class="breadcrumb-item active">{{ table.table_name }}</li>
+            </ol>
+        </nav>
+
+        <div class="d-flex justify-content-between align-items-start mb-4">
+            <div>
+                <h1>
+                    <i class="fas fa-table me-2 text-primary"></i>
+                    {{ table.table_name }}
+                    {% if table.ai_confidence %}
+                        {% set confidence_class = "confidence-high" if table.ai_confidence > 0.8 else ("confidence-medium" if table.ai_confidence > 0.5 else "confidence-low") %}
+                        <span class="badge {{ confidence_class }} confidence-badge ms-2">
+                            AI: {{ "%.0f"|format(table.ai_confidence * 100) }}%
+                        </span>
+                    {% endif %}
+                </h1>
+                <p class="text-muted">
+                    <i class="fas fa-layer-group me-1"></i>
+                    {{ table.schema_name }} • 
+                    <i class="fas fa-cube me-1"></i>
+                    {{ table.table_type.replace('BASE TABLE', 'Table').replace('VIEW', 'View') }}
+                    {% if table.row_count %}
+                        • <i class="fas fa-list-ol me-1"></i>
+                        {{ "{:,}".format(table.row_count) }} rows
+                    {% endif %}
+                </p>
+            </div>
+            <div>
+                <span class="badge status-{{ table.validation_status }} fs-6">
+                    <i class="fas fa-circle me-1"></i>
+                    {{ table.validation_status.title() }}
+                </span>
+            </div>
+        </div>
+
+        {% if table.description %}
+        <div class="card mb-4">
+            <div class="card-body">
+                <h6 class="card-title">
+                    <i class="fas fa-info-circle me-1"></i>
+                    Description
+                </h6>
+                <p class="card-text">{{ table.description }}</p>
+                {% if table.description_id %}
+                <div class="d-flex justify-content-end">
+                    <button class="btn btn-sm btn-outline-success me-2" 
+                            onclick="validateDescription({{ table.description_id }}, 'approve')">
+                        <i class="fas fa-check me-1"></i>
+                        Approve
+                    </button>
+                    <button class="btn btn-sm btn-outline-primary me-2"
+                            onclick="editDescription({{ table.description_id }}, '{{ table.description|replace("'", "\\'") }}')">
+                        <i class="fas fa-edit me-1"></i>
+                        Edit
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger"
+                            onclick="validateDescription({{ table.description_id }}, 'reject')">
+                        <i class="fas fa-times me-1"></i>
+                        Reject
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-columns me-1"></i>
+                    Columns ({{ table.columns|length }})
+                </h5>
+                <div class="input-group" style="max-width: 300px;">
+                    <span class="input-group-text">
+                        <i class="fas fa-search"></i>
+                    </span>
+                    <input type="text" class="form-control form-control-sm" 
+                           id="searchColumns" placeholder="Search columns..." 
+                           onkeyup="filterColumns()">
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Column</th>
+                                <th>Type</th>
+                                <th>Nullable</th>
+                                <th>Cardinality</th>
+                                <th>Description</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="columnsTableBody">
+                            {% for column in table.columns %}
+                            <tr class="column-row" data-name="{{ column.name.lower() }}">
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <strong>{{ column.name }}</strong>
+                                        {% if column.is_key %}
+                                            <i class="fas fa-key text-warning ms-2" title="Primary/Foreign Key"></i>
+                                        {% endif %}
+                                        {% if column.is_pii %}
+                                            <i class="fas fa-user-shield pii-indicator ms-2" title="Contains PII"></i>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td>
+                                    <code>{{ column.data_type }}</code>
+                                </td>
+                                <td>
+                                    {% if column.is_nullable %}
+                                        <span class="text-success">
+                                            <i class="fas fa-check"></i>
+                                        </span>
+                                    {% else %}
+                                        <span class="text-danger">
+                                            <i class="fas fa-times"></i>
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if column.cardinality %}
+                                        {{ "{:,}".format(column.cardinality) }}
+                                        {% if column.null_percentage %}
+                                            <br><small class="text-muted">{{ "%.1f"|format(column.null_percentage) }}% null</small>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if column.description %}
+                                        <div class="description-text">
+                                            {{ column.description[:100] }}{% if column.description|length > 100 %}...{% endif %}
+                                        </div>
+                                        {% if column.ai_confidence %}
+                                            {% set confidence_class = "confidence-high" if column.ai_confidence > 0.8 else ("confidence-medium" if column.ai_confidence > 0.5 else "confidence-low") %}
+                                            <small class="badge {{ confidence_class }} confidence-badge">
+                                                {{ "%.0f"|format(column.ai_confidence * 100) }}%
+                                            </small>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-muted">
+                                            <em>No description</em>
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge status-{{ column.validation_status }}">
+                                        {{ column.validation_status.title() }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if column.description and column.description_id %}
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button class="btn btn-outline-success btn-sm" 
+                                                title="Approve" onclick="validateDescription({{ column.description_id }}, 'approve')">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                        <button class="btn btn-outline-primary btn-sm" 
+                                                title="Edit" onclick="editDescription({{ column.description_id }}, '{{ column.description|replace("'", "\\'") }}')">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="btn btn-outline-danger btn-sm" 
+                                                title="Reject" onclick="validateDescription({{ column.description_id }}, 'reject')">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                    {% else %}
+                                    <button class="btn btn-outline-secondary btn-sm" disabled>
+                                        <i class="fas fa-robot me-1"></i>
+                                        Generate
+                                    </button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Description Modal -->
+<div class="modal fade" id="editDescriptionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Edit Description</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="editDescriptionForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="editedDescription" class="form-label">Description</label>
+                        <textarea class="form-control" id="editedDescription" name="description" rows="4" required></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editFeedback" class="form-label">Feedback (Optional)</label>
+                        <input type="text" class="form-control" id="editFeedback" name="feedback" 
+                               placeholder="Why did you make this change?">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentEditingDescription = null;
+
+function filterColumns() {
+    const searchTerm = document.getElementById('searchColumns').value.toLowerCase();
+    const rows = document.querySelectorAll('.column-row');
+    
+    rows.forEach(row => {
+        const columnName = row.dataset.name;
+        if (columnName.includes(searchTerm)) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+async function validateDescription(descriptionId, action) {
+    if (!descriptionId) {
+        alert('No description ID available for validation');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/descriptions/${descriptionId}/validate`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ action: action })
+        });
+        
+        if (response.ok) {
+            location.reload();
+        } else {
+            const error = await response.json();
+            alert('Error: ' + error.detail);
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+function editDescription(descriptionId, currentDescription) {
+    currentEditingDescription = descriptionId;
+    
+    document.getElementById('editedDescription').value = currentDescription || '';
+    document.getElementById('editFeedback').value = '';
+    
+    const modal = new bootstrap.Modal(document.getElementById('editDescriptionModal'));
+    modal.show();
+}
+
+document.getElementById('editDescriptionForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    if (!currentEditingDescription) return;
+    
+    const formData = new FormData(e.target);
+    const data = {
+        action: 'edit',
+        feedback: formData.get('description')
+    };
+    
+    try {
+        const response = await fetch(`/api/descriptions/${currentEditingDescription}/validate`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        });
+        
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('editDescriptionModal')).hide();
+            location.reload();
+        } else {
+            const error = await response.json();
+            alert('Error: ' + error.detail);
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+});
+</script>
+{% endblock %}
