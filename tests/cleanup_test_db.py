@@ -9,7 +9,7 @@ def cleanup_test_databases():
     
     files_to_remove = [
         "test_ecommerce.db",
-        "schema_scribe.db",  # Schema Scribe's internal database
+        "dbdoc.db",  # Schema Scribe's internal database
         "*.db-journal",      # SQLite journal files
         "*.db-wal",         # SQLite WAL files
         "*.db-shm"          # SQLite shared memory files

@@ -9,8 +9,8 @@ from sqlalchemy import create_engine
 # Add project root to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from schema_scribe.models.base import DATABASE_URL, engine
-from schema_scribe.models import DataSource, Table, TableFilter, UserContext
+from dbdoc.models.base import DATABASE_URL, engine
+from dbdoc.models import DataSource, Table, TableFilter, UserContext
 
 def test_database_structure():
     """Test that the database has the new structure."""
@@ -119,13 +119,13 @@ def test_api_imports():
     print("\nTesting API imports...")
     
     try:
-        from schema_scribe.api.endpoints import router
+        from dbdoc.api.endpoints import router
         print("✓ Enhanced endpoints imported successfully")
         
-        from schema_scribe.services.erd_generator import ERDGenerator
+        from dbdoc.services.erd_generator import ERDGenerator
         print("✓ ERD generator imported successfully")
         
-        from schema_scribe.services.enhanced_ai_service import EnhancedAIService
+        from dbdoc.services.enhanced_ai_service import EnhancedAIService
         print("✓ Enhanced AI service imported successfully")
         
         return True

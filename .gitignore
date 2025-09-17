@@ -7,9 +7,9 @@ __pycache__/
 venv/
 
 # Databases
-*.db
-*.sqlite
-*.sqlite3
+data/*.db
+data/*.sqlite
+data/*.sqlite3
 
 # IDE
 .vscode/
@@ -21,12 +21,6 @@ Thumbs.db
 
 # Claude
 .claude
-.claudeignore
-CLAUDE.md
-
-# Project specific
-schema_scribe.db
-test_*.db
 
 # Environment variables
 .env

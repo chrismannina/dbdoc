@@ -1,8 +1,8 @@
-# Schema Scribe Improvement Plan
+# DBDoc Improvement Plan
 
 ## Executive Summary
 
-Schema Scribe has strong foundations but needs critical enhancements to handle massive reporting databases (100s-1000s of tables, millions of rows) while maintaining excellent user experience. This plan outlines prioritized improvements focusing on scalability, usability, and extensibility.
+DBDoc has strong foundations but needs critical enhancements to handle massive reporting databases (100s-1000s of tables, millions of rows) while maintaining excellent user experience. This plan outlines prioritized improvements focusing on scalability, usability, and extensibility.
 
 ## Critical Issues to Address
 
@@ -72,7 +72,7 @@ from celery import Celery
 
 class GenerationJob:
     def __init__(self):
-        self.queue = Celery('schema_scribe')
+        self.queue = Celery('dbdoc')
     
     @queue.task
     def generate_batch(self, table_ids, context):
@@ -435,12 +435,12 @@ class ExportManager:
 
 ## Conclusion
 
-This improvement plan transforms Schema Scribe from a functional prototype into a production-ready, enterprise-grade data catalog solution. The phased approach ensures we address critical scalability issues first while progressively enhancing the user experience and feature set.
+This improvement plan transforms DBDoc from a functional prototype into a production-ready, enterprise-grade data catalog solution. The phased approach ensures we address critical scalability issues first while progressively enhancing the user experience and feature set.
 
-The key innovations that will set Schema Scribe apart:
+The key innovations that will set DBDoc apart:
 1. **User context integration** - Combining business knowledge with AI
 2. **Visual relationship management** - Interactive ERD generation
 3. **Iterative improvement workflow** - Continuous enhancement of descriptions
 4. **Enterprise scalability** - Handle massive reporting databases efficiently
 
-With these improvements, Schema Scribe will be the easiest and most effective way to create comprehensive, accurate data documentation for any size database.
+With these improvements, DBDoc will be the easiest and most effective way to create comprehensive, accurate data documentation for any size database.

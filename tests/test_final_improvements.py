@@ -8,11 +8,11 @@ from sqlalchemy.orm import sessionmaker
 # Add project root to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from schema_scribe.models.base import engine
-from schema_scribe.models import DataSource, Table, Column, TableFilter, UserContext, Relationship
-from schema_scribe.services.job_manager import JobManager, JobType, JobStatus
-from schema_scribe.services.relationship_detector import RelationshipDetector
-from schema_scribe.services.erd_generator import ERDGenerator
+from dbdoc.models.base import engine
+from dbdoc.models import DataSource, Table, Column, TableFilter, UserContext, Relationship
+from dbdoc.services.job_manager import JobManager, JobType, JobStatus
+from dbdoc.services.relationship_detector import RelationshipDetector
+from dbdoc.services.erd_generator import ERDGenerator
 
 def test_all_improvements():
     """Test all the improvements we've implemented."""
@@ -98,8 +98,8 @@ def test_all_improvements():
         # Test 5: API Imports
         print("5. Testing API imports...")
         try:
-            from schema_scribe.api.endpoints import router
-            from schema_scribe.api.schemas import (
+            from dbdoc.api.endpoints import router
+            from dbdoc.api.schemas import (
                 TableListParams, PaginatedTableResponse, 
                 UserContextCreate, TableFilterBulkUpdate
             )
@@ -112,7 +112,7 @@ def test_all_improvements():
         # Test 6: Enhanced AI Service
         print("6. Testing enhanced AI service...")
         try:
-            from schema_scribe.services.enhanced_ai_service import EnhancedAIService
+            from dbdoc.services.enhanced_ai_service import EnhancedAIService
             
             print("   ✓ Enhanced AI service imports working")
             tests_passed += 1
@@ -122,7 +122,7 @@ def test_all_improvements():
         # Test 7: Async Generation Engine
         print("7. Testing async generation engine...")
         try:
-            from schema_scribe.services.async_generation_engine import AsyncGenerationEngine
+            from dbdoc.services.async_generation_engine import AsyncGenerationEngine
             
             print("   ✓ Async generation engine imports working")
             tests_passed += 1
@@ -132,7 +132,7 @@ def test_all_improvements():
         # Test 8: Web Templates
         print("8. Testing web templates...")
         try:
-            template_path = os.path.join(os.path.dirname(__file__), "schema_scribe", "web", "templates", "enhanced_catalog.html")
+            template_path = os.path.join(os.path.dirname(__file__), "dbdoc", "web", "templates", "enhanced_catalog.html")
             if os.path.exists(template_path):
                 with open(template_path, 'r') as f:
                     content = f.read()

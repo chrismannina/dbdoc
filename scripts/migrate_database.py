@@ -9,8 +9,8 @@ from sqlalchemy.orm import sessionmaker
 # Add project root to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from schema_scribe.models.base import DATABASE_URL, engine
-from schema_scribe.models import Base
+from dbdoc.models.base import DATABASE_URL, engine
+from dbdoc.models import Base
 
 def check_table_exists(engine, table_name):
     """Check if a table exists in the database."""

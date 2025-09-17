@@ -481,7 +481,7 @@ def main():
         print_database_stats(db_path)
         
         print(f"\n🎯 Next Steps:")
-        print(f"1. Start Schema Scribe: python -m schema_scribe.main")
+        print(f"1. Start DBDoc: python -m dbdoc.main")
         print(f"2. Open http://localhost:8000")
         print(f"3. Add data source with connection string: sqlite:///{os.path.abspath(db_path)}")
         print(f"4. Run schema discovery and generate AI descriptions!")

@@ -1,10 +1,10 @@
-# Schema Scribe
+# DBDoc
 
 An LLM-powered data catalog that automatically generates intelligent schema documentation.
 
 ## Overview
 
-Schema Scribe transforms database documentation from a manual chore into an intelligent, automated process. It connects to your databases, analyzes schemas and data patterns, and uses AI to generate comprehensive, business-friendly documentation.
+DBDoc transforms database documentation from a manual chore into an intelligent, automated process. It connects to your databases, analyzes schemas and data patterns, and uses AI to generate comprehensive, business-friendly documentation.
 
 ## Features
 
@@ -31,7 +31,7 @@ Schema Scribe transforms database documentation from a manual chore into an inte
 
 3. Run the application:
    ```bash
-   schema-scribe
+   dbdoc
    ```
 
 4. Open http://localhost:8000 in your browser
@@ -75,7 +75,7 @@ isort .
 
 ## Architecture
 
-Schema Scribe follows a multi-layer architecture:
+DBDoc follows a multi-layer architecture:
 
 1. **Data Layer**: Connects to source databases and extracts metadata
 2. **Profiling Layer**: Analyzes data patterns and quality

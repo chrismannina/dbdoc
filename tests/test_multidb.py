@@ -4,7 +4,7 @@
 import os
 import tempfile
 import sqlite3
-from schema_scribe.services.multi_db_connector import MultiDatabaseConnector, DatabaseType
+from dbdoc.services.multi_db_connector import MultiDatabaseConnector, DatabaseType
 
 def test_sqlite_connector():
     """Test SQLite connection and metadata extraction."""

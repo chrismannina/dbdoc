@@ -1,9 +1,9 @@
-"""Main entry point for Schema Scribe."""
+"""Main entry point for DBDoc."""
 
 import uvicorn
 import logging
 import os
-from schema_scribe.api.main import app
+from dbdoc.api.main import app
 
 # Configure logging
 logging.basicConfig(
@@ -17,7 +17,7 @@ def main():
     host = os.getenv("HOST", "127.0.0.1")
     
     print(f"""
-    🤖 Schema Scribe - LLM-Powered Data Catalog
+    🤖 DBDoc - LLM-Powered Data Catalog
     
     Starting server at: http://{host}:{port}
     
@@ -29,7 +29,7 @@ def main():
     """)
     
     uvicorn.run(
-        "schema_scribe.api.main:app",
+        "dbdoc.api.main:app",
         host=host,
         port=port,
         reload=True
